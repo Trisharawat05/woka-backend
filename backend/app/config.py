@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     INSTAGRAM_AUTH_HOST: str = Field(default="https://www.instagram.com", description="Instagram Web Authorize host")
     FRONTEND_URL: str = Field(default="http://localhost:3000", description="Frontend application URL")
 
+    # Public Backend URL (used when exposed via ngrok or cloud domain)
+    BACKEND_PUBLIC_URL: str = Field(
+        default="",
+        description="Public backend HTTPS URL when exposed via ngrok or cloud host (e.g. https://your-domain.ngrok-free.app)"
+    )
+
     # CORS & Trusted Hosts
     CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
@@ -102,11 +108,52 @@ class Settings(BaseSettings):
             return [host.strip() for host in v_str.split(",") if host.strip()]
         return v
 
+    @property
+    def public_oauth_callback_url(self) -> str:
+        if self.BACKEND_PUBLIC_URL:
+            return f"{self.BACKEND_PUBLIC_URL.strip().rstrip('/')}{self.API_V1_STR}/instagram/callback"
+        return self.META_REDIRECT_URI
+
+    @property
+    def public_webhook_url(self) -> str:
+        base = self.BACKEND_PUBLIC_URL.strip().rstrip('/') if self.BACKEND_PUBLIC_URL else "http://localhost:8000"
+        return f"{base}{self.API_V1_STR}/instagram/webhook"
+
+    @property
+    def public_deauthorize_url(self) -> str:
+        base = self.BACKEND_PUBLIC_URL.strip().rstrip('/') if self.BACKEND_PUBLIC_URL else "http://localhost:8000"
+        return f"{base}{self.API_V1_STR}/instagram/deauthorize"
+
+    @property
+    def public_data_deletion_url(self) -> str:
+        base = self.BACKEND_PUBLIC_URL.strip().rstrip('/') if self.BACKEND_PUBLIC_URL else "http://localhost:8000"
+        return f"{base}{self.API_V1_STR}/instagram/data-deletion"
+
     @model_validator(mode="after")
     def validate_production_security(self):
         # Auto-include FRONTEND_URL in CORS_ORIGINS to prevent cross-origin mismatches
         if self.FRONTEND_URL and self.FRONTEND_URL not in self.CORS_ORIGINS:
             self.CORS_ORIGINS.append(self.FRONTEND_URL)
+
+        # Dynamic ngrok / public URL handling
+        if self.BACKEND_PUBLIC_URL:
+            clean_public = self.BACKEND_PUBLIC_URL.strip().rstrip('/')
+            if clean_public:
+                if clean_public not in self.CORS_ORIGINS:
+                    self.CORS_ORIGINS.append(clean_public)
+                from urllib.parse import urlparse
+                host = urlparse(clean_public).netloc
+                if host and "*" not in self.ALLOWED_HOSTS and host not in self.ALLOWED_HOSTS:
+                    self.ALLOWED_HOSTS.append(host)
+                # If META_REDIRECT_URI is not explicitly configured or points to localhost/placeholder,
+                # dynamically compute it from BACKEND_PUBLIC_URL
+                if (
+                    not self.META_REDIRECT_URI
+                    or "localhost" in self.META_REDIRECT_URI
+                    or "127.0.0.1" in self.META_REDIRECT_URI
+                    or "YOUR-NGROK-DOMAIN" in self.META_REDIRECT_URI
+                ):
+                    self.META_REDIRECT_URI = f"{clean_public}{self.API_V1_STR}/instagram/callback" 
 
         if self.ENVIRONMENT.lower() == "production":
             default_secret = "woka-super-secret-production-grade-signing-key-32chars-min!"

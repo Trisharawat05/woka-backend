@@ -11,6 +11,8 @@ env/
 .env.*
 !.env.example
 !.env.staging.example
+!.env.local.example
+!*.example
 backend/.env
 frontend/.env
 frontend/.env.local

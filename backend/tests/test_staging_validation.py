@@ -267,3 +267,35 @@ def test_oauth_connect_with_explicit_redirect_uri(client, auth_headers, test_cre
     }, headers=auth_headers)
     assert res.status_code == 200
     assert res.json()["is_connected"] is True
+
+
+def test_dynamic_ngrok_backend_public_url_resolution():
+    """Verifies that BACKEND_PUBLIC_URL dynamically configures META_REDIRECT_URI and CORS_ORIGINS."""
+    from app.config import Settings
+    custom = Settings(
+        BACKEND_PUBLIC_URL="https://custom-tunnel-abc.ngrok-free.app",
+        META_REDIRECT_URI="http://localhost:8000/api/v1/instagram/callback"
+    )
+    assert custom.public_oauth_callback_url == "https://custom-tunnel-abc.ngrok-free.app/api/v1/instagram/callback"
+    assert custom.META_REDIRECT_URI == "https://custom-tunnel-abc.ngrok-free.app/api/v1/instagram/callback"
+    assert "https://custom-tunnel-abc.ngrok-free.app" in custom.CORS_ORIGINS
+    assert custom.public_webhook_url == "https://custom-tunnel-abc.ngrok-free.app/api/v1/instagram/webhook"
+    assert custom.public_deauthorize_url == "https://custom-tunnel-abc.ngrok-free.app/api/v1/instagram/deauthorize"
+    assert custom.public_data_deletion_url == "https://custom-tunnel-abc.ngrok-free.app/api/v1/instagram/data-deletion"
+
+
+def test_instagram_endpoints_info_and_deletion_status(client):
+    """Verifies the /api/v1/instagram/endpoints-info and /deletion-status endpoints."""
+    info_resp = client.get("/api/v1/instagram/endpoints-info")
+    assert info_resp.status_code == 200
+    info_data = info_resp.json()
+    assert "oauth_callback_url" in info_data
+    assert "webhook_url" in info_data
+    assert "deauthorize_url" in info_data
+    assert "data_deletion_url" in info_data
+
+    del_resp = client.get("/api/v1/instagram/deletion-status?code=woka_del_test123")
+    assert del_resp.status_code == 200
+    del_data = del_resp.json()
+    assert del_data["confirmation_code"] == "woka_del_test123"
+    assert del_data["status"] == "COMPLETED"

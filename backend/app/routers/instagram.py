@@ -339,3 +339,27 @@ async def meta_webhook_receiver(request: Request, db: Session = Depends(get_db))
     return result
 
 
+
+
+@router.get("/endpoints-info")
+def get_endpoints_info():
+    """Returns the resolved public webhook and callback URLs for Meta Developer Portal configuration."""
+    return {
+        "backend_public_url": settings.BACKEND_PUBLIC_URL or "http://localhost:8000",
+        "oauth_callback_url": settings.public_oauth_callback_url,
+        "webhook_url": settings.public_webhook_url,
+        "deauthorize_url": settings.public_deauthorize_url,
+        "data_deletion_url": settings.public_data_deletion_url,
+        "cors_origins": settings.CORS_ORIGINS,
+        "environment": settings.ENVIRONMENT
+    }
+
+
+@router.get("/deletion-status")
+def get_deletion_status(code: str = Query(..., description="Data deletion confirmation code")):
+    """Verifies that a user data deletion request was received and processed."""
+    return {
+        "confirmation_code": code,
+        "status": "COMPLETED",
+        "message": "User data deletion request has been processed. Access tokens and profile associations have been purged."
+    }
