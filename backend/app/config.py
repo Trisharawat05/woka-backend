@@ -65,7 +65,11 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = Field(default="", description="Optional OpenAI API Key")
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"),
+            ".env",
+            "backend/.env"
+        ),
         env_file_encoding="utf-8",
         extra="ignore"
     )
